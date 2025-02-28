@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -43,12 +44,14 @@ const createActivitySchema = z.object({
 
 type ActivityFormData = z.infer<typeof createActivitySchema>;
 
-function AtividadeCadastro() {
+export const dynamic = 'force-dynamic'; // Disable prerendering
+
+function AtividadeCadastroContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const id = searchParams.get('id');
     const isEditing = !!id;
-    const activity = isEditing ? buscarAtividadePorId(id) : null;
+    const [isLoading, setIsLoading] = useState(true); // Add loading state
 
     const {
         register,
@@ -57,28 +60,37 @@ function AtividadeCadastro() {
         setValue,
     } = useForm<ActivityFormData>({
         resolver: zodResolver(createActivitySchema),
-        defaultValues: {
-            id: activity?.id || '',
-            nome: activity?.nome || '',
-            responsavel: activity?.responsavel || '',
-            dataFim: activity?.dataFim
-                ? new Date(activity.dataFim).toISOString().split('T')[0]
-                : '',
-            descricao: activity?.descricao || '',
-            tipo: activity?.tipo || 'Pesquisa', // Tipo default se não encontrado
-        },
     });
 
+    // Fetch activity data on the client side
     useEffect(() => {
-        if (isEditing && activity) {
-            setValue('id', activity.id);
-            setValue('nome', activity.nome);
-            setValue('responsavel', activity.responsavel);
-            setValue('dataFim', new Date(activity.dataFim).toISOString().split('T')[0]);
-            setValue('descricao', activity.descricao? activity.descricao : '');
-            setValue('tipo', activity.tipo);
+        if (isEditing && id) {
+            const fetchActivity = async () => {
+                try {
+                    const activityData = await buscarAtividadePorId(id);
+                    if (activityData) {
+                        setValue('id', activityData.id);
+                        setValue('nome', activityData.nome);
+                        setValue('responsavel', activityData.responsavel);
+                        setValue('dataFim', new Date(activityData.dataFim).toISOString().split('T')[0]);
+                        setValue('descricao', activityData.descricao || '');
+                        setValue('tipo', activityData.tipo);
+                    }
+                } catch (error) {
+                    console.error('Erro ao buscar atividade:', error);
+                    toast.error('Erro ao carregar atividade', {
+                        icon: <AlertCircle className="text-red-500" />,
+                        className: 'dark:bg-gray-800 dark:text-white',
+                    });
+                } finally {
+                    setIsLoading(false); // Set loading to false after fetching
+                }
+            };
+            fetchActivity();
+        } else {
+            setIsLoading(false); // Set loading to false if not editing
         }
-    }, [isEditing, activity, setValue]);
+    }, [isEditing, id, setValue]);
 
     const onSubmit = async (data: ActivityFormData) => {
         try {
@@ -91,7 +103,7 @@ function AtividadeCadastro() {
             };
 
             if (isEditing && data.id) {
-                atualizarAtividade(data.id, activityData);
+                await atualizarAtividade(data.id, activityData);
                 toast.success('Atividade atualizada com sucesso!', {
                     icon: <CheckCircle2 className="text-green-500" />,
                     className: 'dark:bg-gray-800 dark:text-white',
@@ -99,7 +111,7 @@ function AtividadeCadastro() {
                     position: 'top-right',
                 });
             } else {
-                criarAtividade(activityData);
+                await criarAtividade(activityData);
                 toast.success('Atividade criada com sucesso!', {
                     icon: <CheckCircle2 className="text-green-500" />,
                     className: 'dark:bg-gray-800 dark:text-white',
@@ -116,6 +128,14 @@ function AtividadeCadastro() {
             });
         }
     };
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+                <Loader2 className="animate-spin h-8 w-8 text-blue-500" />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-4 px-4 sm:py-8 sm:px-6 lg:px-8">
@@ -310,6 +330,14 @@ function AtividadeCadastro() {
             </div>
         </div>
     );
+}
+
+function AtividadeCadastro(){
+    return (
+        <Suspense>
+            <AtividadeCadastroContent />
+        </Suspense>
+    )
 }
 
 export default AtividadeCadastro;

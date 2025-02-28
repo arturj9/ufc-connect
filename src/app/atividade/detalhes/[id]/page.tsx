@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import {
-    buscarAtividadePorId,
+  buscarAtividadePorId,
 } from '@/lib/services/atividadeService';
 import {
   Calendar,
@@ -91,7 +91,7 @@ export default function AtividadeDetalhes() {
             </p>
           </div>
 
-          
+
         </div>
       </div>
     </div>
